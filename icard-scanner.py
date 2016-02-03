@@ -7,20 +7,13 @@ import Tkinter as tk
 import tkFileDialog
 import tkMessageBox
 import csv
-
+import time
 
 __author__ = "Raymond Farias"
 __email__ = "rayfarias56@gmail.com"
 __license__ = "GNU GENERAL PUBLIC LICENSE"
 __copyright__ = "Copyright 2016"
 __version__ = "1.0"
-
-
-# TODO:
-# implement nsbe scanner
-# clean up and document
-# try turning into executable
-# version control
 
 
 LENGTH_OF_UIN = 9
@@ -57,17 +50,14 @@ class MainAppFrame(tk.Frame):
 
         # Entry Field
         self.uinInput = tk.StringVar()
-        tk.Entry(centerFrame, textvariable=self.uinInput).pack(side=tk.TOP, pady=20)
-
-        # Dropdown
-        self.scannerMenu = ScannerMenu(centerFrame)
-        self.scannerMenu.pack(side="top")
+        entry = tk.Entry(centerFrame, textvariable=self.uinInput)
+        entry.pack(side=tk.TOP, pady=20)
+        entry.focus_set()
 
         # Submit button
         tk.Button(centerFrame, text="Manual Submit", 
             command=lambda: self.submit()).pack(side=tk.TOP, pady=20)
         
-
         centerFrame.place(anchor=tk.CENTER, relx=0.5, rely=0.45)
 
         # Adjust to fit attached widgets and use adjusted size to set minimum size
@@ -91,74 +81,41 @@ class MainAppFrame(tk.Frame):
         ''' 
         '''
         raw_uin = self.uinInput.get()
-        scanner_type = self.scannerMenu.scanner_type.get()
-        
 
         if not raw_uin: 
             return
+        
         self.uinInput.set("")
-
-
-        if len(raw_uin) == LENGTH_OF_UIN: 
-            writeUin(raw_uin)        
-            return
-            
-
-        if scanner_type == NSBE_SCANNER:
-            uin = stripNsbeUin()
-        elif scanner_type == SHPE_SCANNER:
-            uin = stripShpeUin(raw_uin)
-
+        uin = self.stripUin(raw_uin)
         if uin is not None: 
             writeUin(uin)
 
 
-class ScannerMenu(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
-        self.parent = parent
+    def stripUin(self, raw_uin):
+        if raw_uin == ";E?":
+            showSwipeErrorMessage()
+            return None
 
-        # Label
-        tk.Label(self, text="Type of Scanner:", font="Helvetica 11 bold").pack(side=tk.LEFT)
+        # If it looks like it's just a manual UIN submission. Assume so. 
+        if raw_uin.isdigit() and len(raw_uin) == LENGTH_OF_UIN: 
+            writeUin(raw_uin)        
+            return
+        
+        # Some scanners submit two lines, one with school data, one with card data. Ignore school data.
+        if "CARDHOLDER/UNIVERSITY" in raw_uin:
+            return None
 
-        # Dropdown Menu
-        choices = [SHPE_SCANNER, NSBE_SCANNER]
-        self.scanner_type = tk.StringVar()
-        self.scanner_type.set(choices[0])    
-        tk.OptionMenu(self, self.scanner_type, *choices).pack(side=tk.LEFT)
+        # Filter input that doesn't look like UIN from a card scanner.
+        if raw_uin[0] != ";" or raw_uin[-1] != "?" or "=" not in raw_uin:
+            showBadInputMessage()
+            return None
+
+        return raw_uin[5:14]
 
 
-# Data Handlers
 def writeUin(uin):
     output_csv_writer.writerow([uin+", "])
     showSuccessMessage()
-
-
-def stripNsbeUin(raw_uin):
-    tkMessageBox.showerror(title="Scanner Type Error", message="NSBE scanner not implemented")
-    return None
-
-    if raw_uin == ";E?":
-        showSwipeErrorMessage()
-        return None
-    
-    if raw_uin[0] != ";" or raw_uin[-1] != "?" or "=" not in raw_uin:
-        showBadInputMessage()
-        return None
-
-    return raw_uin[5:14]
-
-
-def stripShpeUin(raw_uin):
-    if raw_uin == ";E?":
-        showSwipeErrorMessage()
-        return None
-    
-    if raw_uin[0] != ";" or raw_uin[-1] != "?" or "=" not in raw_uin:
-        showBadInputMessage()
-        return None
-
-    return raw_uin[5:14]
 
 
 def showSuccessMessage():
